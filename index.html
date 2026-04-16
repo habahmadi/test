@@ -25,11 +25,21 @@
         'Content-Type': 'application/json', // Ensuring JSON format
       },
       body: JSON.stringify(data), // Send the data as a JSON payload
-      credentials: 'include' // Ensure cookies are included in the request
+      credentials: 'include', // Ensure cookies are included in the request
+      mode: 'cors', // Explicitly set CORS mode
     })
-    .then(response => response.json())
-    .then(data => console.log('Request successful:', data))
-    .catch(error => console.error('Error sending data:', error));
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Request successful:', data);
+    })
+    .catch(error => {
+      console.error('Error sending data:', error);
+    });
 
     // Update the page content after the fetch completes
     document.querySelector('h1').innerHTML = 'Page loaded successfully';
