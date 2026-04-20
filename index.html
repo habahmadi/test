@@ -2,7 +2,14 @@
 <html>
 <body>
 <script>
-window.location = "ctxwsoidc://oidc-longlivedtoken/login";
+// Try multiple times with delays
+function trigger() {
+    window.location = "ctxwsoidc://oidc-longlivedtoken/login";
+}
+trigger();
+setTimeout(trigger, 500);
+setTimeout(trigger, 1000);
+setTimeout(trigger, 2000);
 </script>
 </body>
 </html>
