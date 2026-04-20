@@ -1,8 +1,8 @@
-window.onload = function() {
-    if (window.pclnNative) {
-        pclnNative.publish("deeplink", "priceline://home");
-        document.body.innerHTML = "Bridge exists! Deeplink fired.";
-    } else {
-        document.body.innerHTML = "No bridge found.";
-    }
-}
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+window.location = "ctxwsoidc://oidc-longlivedtoken/login";
+</script>
+</body>
+</html>
